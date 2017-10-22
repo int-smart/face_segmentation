@@ -49,6 +49,13 @@ def load(cPickle_file):
     stream.close()
     return model
 
+def intersection_over_union(ground_truth, prediction):
+    iou = ((np.logical_and(ground_truth,prediction)).astype(int)).sum()/((np.logical_or(ground_truth,prediction)).astype(int)).sum()
+    return iou
+#Important a==b, numpy.astype(int),np.logical_or(a,c)
+#
+
+
 if __name__=='__main__':
     if cPickle_file not in os.listdir(test_image_dir):
         data = get_test_data(test_label_dir,test_image_dir)

@@ -120,6 +120,9 @@ def load_weights(session, weights_url='https://umich.box.com/shared/static/hd1w6
         if tensor:
             tf.assign(tensor[0], value).op.run(session=session)
 
+def intersection_over_union(ground_truth, prediction):
+    iou = ((np.logical_and(ground_truth,prediction)).astype(int)).sum()/((np.logical_or(ground_truth,prediction)).astype(int)).sum()
+    return iou
 
 if __name__ == '__main__':
     train_log_dir = "../train_log/"
