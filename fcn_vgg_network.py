@@ -4,27 +4,29 @@ import numpy as np
 from scipy import misc
 import urllib
 import os
-import cPickle
+import _pickle as cPickle
 import gzip
 import matplotlib.pyplot as plt
 
 slim = tf.contrib.slim
 
-cPickle_file = "saved_test"
+cPickle_file = 'saved_test_00'
 test_label_dir = '/media/abhishek/B67A61587A611701/Users/Second/Desktop/Research/FCN/parts_lfw_funneled_gt_images/'
 test_image_dir = '/media/abhishek/B67A61587A611701/Users/Second/Desktop/Research/FCN/lfw_funneled/'
 image_type = '.jpg'
+cPickle_file_dir = '/media/abhishek/New Volume/'
 
 
-
-def save(test_image_dir, cPickle_file, images_labels):
-    cPickle_file = test_image_dir+cPickle_file
+def save(cPickle_file_dir, cPickle_file, images_labels):
+    print("Saving file......")
+    cPickle_file = cPickle_file_dir+cPickle_file
     stream = gzip.open(cPickle_file, 'wb')
     cPickle.dump(images_labels, stream)
     stream.close()
 
 def load(cPickle_file):
-    stream = gzip.open(cPickle_file, "rb")
+    print("Loading the saved file.....")
+    stream = gzip.open(cPickle_file_dir+cPickle_file, "rb")
     model = cPickle.load(stream)
     stream.close()
     return model
@@ -43,11 +45,15 @@ def get_test_data(test_label_dir, test_image_dir):
                 file_name = '_'.join(file_name)
                 dir_name = file_name
                 file_name = file_name + '_' + str(file_number) + image_type
-            label = misc.imread(path_to_label)
+            label = Image.open(path_to_label)
+            label = label.resize((500, 500))
+            label = np.array(label, dtype=np.int32)
             label = label[:, :, 1]
 
             path_to_image = test_image_dir + dir_name + '/' + file_name
-            image = misc.imread(path_to_image)
+            image = Image.open(path_to_image)
+            image = image.resize((500, 500))
+            image = np.array(image, dtype=np.float32)
             # image_scipy = misc.imread('/media/abhishek/B67A61587A611701/Users/Second/Desktop/Research/FCN/parts_lfw_funneled_gt_images/Aaron_Peirsol_0001.ppm')
             # print(image_scipy.shape)
             # plt.imshow(image_scipy[:,:,1])
@@ -110,10 +116,11 @@ def load_weights(session, weights_url='https://umich.box.com/shared/static/hd1w6
         os.mkdir(weights_download_dir)
     except OSError:
         pass
-    print('Downloading weights for FCN-8s network')
-    urllib.request.urlretrieve(weights_url, weights_download_dir + '/fcn8s_weights.npy')
-    weights = np.load(weights_download_dir + '/fcn8s_weights.npy').item()
+    if not os.path.isfile(weights_download_dir + '/fcn8s_weights.npy'):
+        print('Downloading weights for FCN-8s network')
+        urllib.request.urlretrieve(weights_url, weights_download_dir + '/fcn8s_weights.npy')
 
+    weights = np.load(weights_download_dir + '/fcn8s_weights.npy').item()
     print('Updating the weights:')
     for key, value in weights.items():
         tensor = slim.get_variables_by_name(key)
@@ -125,32 +132,57 @@ def intersection_over_union(ground_truth, prediction):
     return iou
 
 if __name__ == '__main__':
+    IOU = []
     train_log_dir = "../train_log/"
-    image_path = "../data/images/Alison_Lohman_0001.jpg"
+    if cPickle_file not in os.listdir(cPickle_file_dir):
+        data = get_test_data(test_label_dir,test_image_dir)
+        save(test_image_dir, cPickle_file, data)
+        print("I am saving the file")
+    else:
+        data = load(cPickle_file)
+        print("I am loading the file")
+    # image_path = "../data/images/Alison_Lohman_0001.jpg"
     # if not tf.gfile.Exists(train_log_dir):
     #     tf.gfile.MakeDirs(train_log_dir)
-    img = Image.open('../data/images/Alison_Lohman_0001.jpg')
-    img = img.resize((500, 500))
-    input_img = np.array(img, dtype=np.float32)
-    input_img = input_img[:, :, ::-1]
-    input_img -= np.array((104.00698793, 116.66876762, 122.67891434))
-    input_img = np.expand_dims(input_img, axis=0)
-
-    # Creating synthetic data to test the network
-    # synthetic_input = np.random.uniform(0, 255, [1, 500, 500, 3])
-    # synthetic_input = synthetic_input.astype(np.int32)
-    # synthetic_input = synthetic_input.astype(np.float32)
-
-    sess = tf.Session()
+    # img = Image.open('../data/images/Alison_Lohman_0001.jpg')
+    # img = img.resize((500, 500))
+    # input_img = np.array(img, dtype=np.float32)
+    # input_img = input_img[:, :, ::-1]
     input = tf.placeholder(dtype=tf.float32, shape=[1, 500, 500, 3])
+    sess = tf.Session()
     pred, endpoints = fcn_8s(input)
     load_weights(sess)
-    image_pred = sess.run(pred, feed_dict={input: input_img})
+    k=0
+    for example in data:
+        k=k+1
+        input_img = example[0]
+        #print(example[0])
+        input_label = example[1]
+        input_img -= np.array((104.00698793, 116.66876762, 122.67891434))
+        input_img = np.expand_dims(input_img, axis=0)
 
-    # Saving and plotting the output results
-    np.save('../data/image_prediction.npy', image_pred)
-    output = np.argmax(image_pred, axis=3).reshape((500, 500))
-    f, axarr = plt.subplots()
-    axarr.imshow(im)
-    axarr.imshow(output, alpha=0.7)
-    plt.savefig('../data/output.png')
+        # Creating synthetic data to test the network
+        # synthetic_input = np.random.uniform(0, 255, [1, 500, 500, 3])
+        # synthetic_input = synthetic_input.astype(np.int32)
+        # synthetic_input = synthetic_input.astype(np.float32)
+
+        image_pred = sess.run(pred, feed_dict={input: input_img})
+        # Saving and plotting the output results
+        # np.save('../data/image_prediction.npy', image_pred)
+        output = np.argmax(image_pred, axis=3).reshape((500, 500))
+        iou = intersection_over_union(input_label, output)
+        IOU.append(iou)
+        print("Done with the image", k)
+        plt.figure(1)
+        plt.imshow(output)
+        plt.figure(2)
+        plt.imshow(input_label)
+        plt.show()
+        #np.save('../data/iou.npy', IOU)
+
+        # f, axarr = plt.subplots()
+        # axarr.imshow(im)
+        # axarr.imshow(output, alpha=0.7)
+        # plt.savefig('../data/output.png')
+    print("The IOU list is ",IOU)
+    print("The average IOU is ",sum(IOU)/len(IOU))
