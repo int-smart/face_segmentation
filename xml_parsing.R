@@ -1,6 +1,6 @@
 library(XML)
 library(dplyr)
-setwd('C:/Users/Akash Rastogi/Desktop/eecs_542/ANNOTATION')
+setwd('/home/akash/github/face_segmentation/data/VOC2012/Annotations//')
 
 get_temp <- function(file_path){
   doc <- xmlParse(file_path)
@@ -18,7 +18,15 @@ get_temp <- function(file_path){
     }
     data <- bind_cols(data, temp_data)
   }
-  temp_obj <- temp_list$object[!names(temp_list$object) %in% c("part", "bndbox")]
+  temp_obj_list <- temp_list[names(temp_list) %in% "object"]
+  temp_ <- temp_obj_list[[1]]
+  temp_obj <- as.data.frame(temp_[!names(temp_list$object) %in% c("part", "bndbox")])
+
+  for (i in c(2:length(temp_obj_list))){
+    temp <- temp_obj_list[[i]][!names(temp_list$object) %in% c("part", "bndbox")]
+    temp <- as.data.frame(temp)
+    temp_obj <- bind_rows(temp_obj, temp)
+  }
   temp_object <- as.data.frame(temp_obj)
   temp_fnl <- merge(data, temp_object)
 }
