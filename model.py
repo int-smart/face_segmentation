@@ -4,57 +4,9 @@ from tensorflow.contrib.layers.python.layers import layers as layers_lib
 from tensorflow.contrib.framework.python.ops import arg_scope
 slim = tf.contrib.slim
 
-class Fcn_8s(object):
-    def __init__(self, batch_size = 1):
-        self.batch_size = batch_size
-
-    def _create_model(self, input,dropout_keep_prob=1, scope='fcn_8s'):
-        end_points_collection = '_end_points'
-        with tf.variable_scope(scope):
-            with slim.arg_scope(
-                [slim.conv2d, slim.fully_connected,slim.max_pool2d ,slim.conv2d_transpose],
-                padding='SAME',
-                outputs_collections=end_points_collection
-            ):
-                with slim.arg_scope([slim.conv2d_transpose],
-                                    padding='VALID',
-                                    biases_initializer=None):
-                    input_new = tf.pad(input, [[0,0],[100,100],[100,100],[0,0]])
-                    net = slim.conv2d(input_new, 64, [3,3] , padding="VALID", scope='conv_1a')
-                    net = slim.conv2d(net, 64, [3,3] , scope='conv_1b')
-                    net = slim.max_pool2d(net, [2,2],scope = 'pool_1')
-                    net = slim.repeat(net, 2, slim.conv2d, 128, [3,3], scope='conv_2')
-                    net = slim.max_pool2d(net, [2,2],scope = 'pool_2')
-                    net = slim.repeat(net, 3, slim.conv2d, 256, [3,3], scope='conv_3')
-                    pool3 = slim.max_pool2d(net, [2,2],scope = 'pool_3')
-                    net = slim.repeat(pool3, 3, slim.conv2d, 512, [3,3], scope='conv_4')
-                    pool4 = slim.max_pool2d(net, [2,2],scope = 'pool_4')
-                    net = slim.repeat(pool4, 3, slim.conv2d, 512, [3,3], scope='conv_5')
-                    net = slim.max_pool2d(net, [2, 2], scope='pool_5')
-                    net = slim.conv2d(net, 4096, [7,7], padding="VALID", scope='fc6')
-                    net = slim.dropout(net,0.5)
-                    net = slim.conv2d(net, 4096, [1,1], padding="VALID", scope='fc7')
-                    net = slim.dropout(net, 0.5)
-                    net = slim.conv2d(net, 21, [1,1], padding="VALID", scope='score_fr')
-                    upscore2_v = slim.conv2d_transpose(net, 21, [4,4], 2, padding='VALID', biases_initializer=None, scope='upscore2')
-                    int_pool4 = tf.multiply(pool4, 0.01, name='scale_pool4')
-                    score_pool4_v = slim.conv2d(int_pool4, 21, [1,1], padding="VALID", scope='score_pool4')
-                    score_pool4c_v = tf.slice(score_pool4_v, [0,5,5,0], upscore2_v.get_shape().as_list())
-                    net = tf.add(upscore2_v, score_pool4c_v, name="fuse_pool4")
-                    upscore_pool4_v = slim.conv2d_transpose(net, 21, [4, 4], 2, padding='VALID', biases_initializer=None,
-                                                       scope='upscore_pool4')
-                    int_pool3 = tf.multiply(pool3, 0.0001, name='scale_pool3')
-                    score_pool3_v = slim.conv2d(int_pool3, 21, [1, 1], padding="VALID", scope='score_pool3')
-                    score_pool3c_v = tf.slice(score_pool3_v, [0, 9, 9, 0], upscore_pool4_v.get_shape().as_list())
-                    net = tf.add(upscore_pool4_v, score_pool3c_v, name="fuse_pool3")
-                    net = slim.conv2d_transpose(net, 21, [16, 16], 8, padding='VALID', biases_initializer=None,
-                                                            scope='upscore8')
-                    net = tf.slice(net, [0, 31, 31, 0], input.get_shape().as_list())
-                tf.add_to_collection(end_points_collection, net)
-                end_points = slim.utils.convert_collection_to_dict(end_points_collection)
-        return net, end_points
 
 def fcn_8s(input, num_classes=21, is_training=False, scope='fcn_8s'):
+
     with tf.variable_scope(scope):
         end_points_collection = scope + '_endpoints'
         with slim.arg_scope([slim.conv2d, slim.fully_connected],

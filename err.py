@@ -6,31 +6,10 @@ import urllib
 import os
 import _pickle as cPickle
 import gzip
-import matplotlib.pyplot as plt
-
-slim = tf.contrib.slim
-
-cPickle_file = 'saved_test_pascal_voc'
-test_label_dir = '/media/abhishek/B67A61587A611701/Users/Second/Desktop/Research/FCN/pascal_voc_label/'
-test_image_dir = '/media/abhishek/B67A61587A611701/Users/Second/Desktop/Research/FCN/pascal_voc/'
-image_type = '.jpg'
-cPickle_file_dir = '/media/abhishek/New Volume/'
-
-
-def save(cPickle_file_dir, cPickle_file, images_labels):
-    print("Saving file......")
-    cPickle_file = cPickle_file_dir+cPickle_file
-    stream = gzip.open(cPickle_file, 'wb')
-    cPickle.dump(images_labels, stream)
-    stream.close()
-
-def load(cPickle_file):
-    print("Loading the saved file.....")
-    stream = gzip.open(cPickle_file_dir+cPickle_file, "rb")
-    model = cPickle.load(stream)
-    stream.close()
-    return model
-
+asd]
+f
+;a
+weeFeagv
 
 def get_test_data(test_label_dir, test_image_dir):
     images_labels = []
@@ -134,7 +113,7 @@ def fcn_8s(input, num_classes=21, is_training=False, scope='fcn_8s'):
 
 
 def load_weights(session, weights_url='https://umich.box.com/shared/static/81kicsu5t0u2pybjik0d7v13brlualxi.npy',
-                 weights_download_dir='/media/abhishek/B67A61587A611701/Users/Second/Desktop/Research/FCN/data'):
+                 weights_download_dir='./data'):
     try:
         os.mkdir(weights_download_dir)
     except OSError:
@@ -150,36 +129,35 @@ def load_weights(session, weights_url='https://umich.box.com/shared/static/81kic
         if tensor:
             tf.assign(tensor[0], value).op.run(session=session)
 
-def intersection_over_union(ground_truth, prediction):
-    iou = ((np.logical_and(ground_truth,prediction)).astype(int)).sum()/((np.logical_or(ground_truth,prediction)).astype(int)).sum()
-    return iou
+def compute_MIoU(y_pred_batch, y_true_batch):
+    return np.mean(np.asarray([pixelAccuracy(y_pred_batch[i], y_true_batch[i]) for i in range(len(y_true_batch))]))
+
+def pixelAccuracy(y_pred, y_true):
+    y_pred = np.argmax(np.reshape(y_pred), axis=2)
+    y_pred = y_pred
+    return 1.0 * np.sum((y_pred == y_true)) / np.sum(y_true != 255)
+
 
 if __name__ == '__main__':
     IOU = []
-    train_log_dir = "../train_log/"
-    # if cPickle_file not in os.listdir(cPickle_file_dir):
-    #     data = get_test_data_pascal_voc(test_label_dir,test_image_dir)
-    #     save(test_image_dir, cPickle_file, data)
-    #     print("I am saving the file")
-    # else:
-    #     data = load(cPickle_file)
-    #     print("I am loading the file")
-    # image_path = "../data/images/Alison_Lohman_0001.jpg"
-    # if not tf.gfile.Exists(train_log_dir):
-    #     tf.gfile.MakeDirs(train_log_dir)
     filename = '2007_000033'
     img = Image.open('./pascal_voc/'+filename+'.jpg')
     img = img.resize((500, 500))
     input_img = np.array(img, dtype=np.float32)
     input_img = input_img[:, :, ::-1]
     input_img = np.expand_dims(input_img, axis=0)
+    input_img -= np.array((104.00698793, 116.66876762, 122.67891434))
 
     sess = tf.Session()
     input = tf.placeholder(dtype=tf.float32, shape=[1, 500, 500, 3])
     pred, endpoints = fcn_8s(input)
     load_weights(sess)
+
+
     image_pred = sess.run(pred, feed_dict={input: input_img})
     output = np.argmax(image_pred, axis=3).reshape((500, 500))
+
+
     for file in os.listdir(test_label_dir):
         if filename in file:
             label = Image.open(test_label_dir + filename + '.png')
@@ -190,7 +168,8 @@ if __name__ == '__main__':
 
     print("Done with the image")
 
-    iou = intersection_over_union(label,output)
+    iou = intersection_over_union(label, output)
+    a = np.load('./data/VOC2012/SegmentationClass/2007_000032.png')
     print("The iou is ", iou)
     print(image_pred.shape)
     plt.figure(1)
