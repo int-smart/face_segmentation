@@ -3,3 +3,4 @@ data/*
 *.xml
 outfile*
 dataset_ea.py
+model_files/*

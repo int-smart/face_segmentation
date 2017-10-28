@@ -6,13 +6,13 @@ from tensorflow.contrib.framework.python.ops import arg_scope
 slim = tf.contrib.slim
 import os
 import urllib
-import matplotlib.image as mpimg
+import matplotlib.pyplot as plt
 from PIL import Image
 
 
-IMG_PATH = '/home/divyansh/PycharmProjects/545-Project/PASCAL_VOC_2012_EA/IMG'
-GT_PATH = '/home/divyansh/PycharmProjects/545-Project/PASCAL_VOC_2012_EA/GT'
-SEG_IMG_PATH = '/home/divyansh/PycharmProjects/545-Project/fcn.berkeleyvision.org/data/pascal/seg11valid.txt'
+IMG_PATH = './data/VOC2012/JPEGImages'
+GT_PATH = './data/VOC2012/SegmentationClass'
+SEG_IMG_PATH = './data/VOC2012/seg11valid.txt'
 
 
 def fcn_8s(input, num_classes=21, is_training=False, scope='fcn_8s'):
@@ -62,7 +62,7 @@ def fcn_8s(input, num_classes=21, is_training=False, scope='fcn_8s'):
                 return net, end_points
 
 def load_weights(session, weights_url='https://umich.box.com/shared/static/81kicsu5t0u2pybjik0d7v13brlualxi.npy',
-                 weights_download_dir='../data'):
+                 weights_download_dir='./model_files/'):
     try:
         os.mkdir(weights_download_dir)
     except OSError:
@@ -77,15 +77,11 @@ def load_weights(session, weights_url='https://umich.box.com/shared/static/81kic
         tensor = slim.get_variables_by_name(key)
         if tensor:
             tf.assign(tensor[0], value).op.run(session=session)
-'''
-def intersection_over_union(ground_truth, prediction):
-    iou = ((np.logical_and(ground_truth,prediction)).astype(int)).sum()/((np.logical_or(ground_truth,prediction)).astype(int)).sum()
-    return iou
-'''
+
+
 def pixelAccuracy(y_pred, y_true):
-    y_pred = np.argmax(np.reshape(y_pred), axis=2)
-    y_pred = y_pred
     return 1.0 * np.sum((y_pred == y_true)) / np.sum(y_true != 255)
+
 
 def compute_MIoU(y_pred_batch, y_true_batch):
     return np.mean(np.asarray([pixelAccuracy(y_pred_batch[i], y_true_batch[i]) for i in range(len(y_true_batch))]))
@@ -103,7 +99,7 @@ def load_data(image, IMAGE_PATH = IMG_PATH, GROUNDT_PATH = GT_PATH):
     gt = Image.open(GROUNDT_PATH + '/' + image.rstrip('\n') + ".png")
     gt = gt.resize((500, 500))
     gt = np.array(gt, dtype=np.uint8)
-    gt = gt[np.newaxis, ...]
+    # gt = gt[np.newaxis, ...]
     return input_img,gt
 
 def test(list_image, sess, prediction, endpoints, input):
@@ -121,23 +117,15 @@ def test(list_image, sess, prediction, endpoints, input):
         image_pred = sess.run(prediction, feed_dict={input: inp_img})
         output = np.argmax(image_pred, axis=3).reshape((500, 500))
         fin_prediction.append(output)
-        list_iou[i,:] = compute_MIoU(output,gt)
+        list_iou[i] = pixelAccuracy(output, gt)
         i += 1
     mIoU = sum(list_iou)/len(list_iou)
     return list_iou,mIoU,fin_prediction
 
 
 def main():
-    train_log_dir = "./train_log_dir/"
-    if not tf.gfile.Exists(train_log_dir):
-        tf.gfile.MakeDirs(train_log_dir)
-
     #Creating a list of validation images
-    seg_img = open(SEG_IMG_PATH, 'r')
-    list_valimg = []
-    for each in seg_img:
-        list_valimg.append(each)
-
+    list_valimg = open(SEG_IMG_PATH, 'r').readlines()
     # Start session, setup placeholders and load weights.
     sess1 = tf.Session()
     inp = tf.placeholder(dtype=tf.float32, shape=[1, 500, 500, 3])
@@ -145,7 +133,7 @@ def main():
     load_weights(sess1)
 
     # Call the test function to load images, run it through the net and calculate IoU values.
-    list_iou, miou, list_pred = test(list_valimg, sess= sess1, prediction= pred, endpoints=endpoint, input = inp)
+    list_iou, miou, list_pred = test(list_valimg, sess=sess1, prediction=pred, endpoints=endpoint, input=inp)
     print(list_iou, miou, list_pred)
 
 if __name__=='__main__':

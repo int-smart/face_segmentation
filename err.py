@@ -6,10 +6,7 @@ import urllib
 import os
 import _pickle as cPickle
 import gzip
-asd]
-f
-;a
-weeFeagv
+
 
 def get_test_data(test_label_dir, test_image_dir):
     images_labels = []
