@@ -1,3 +1,5 @@
 data/*
 .idea/*
 *.xml
+outfile*
+dataset_ea.py
