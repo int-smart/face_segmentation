@@ -21,12 +21,14 @@ get_temp <- function(file_path){
   temp_obj_list <- temp_list[names(temp_list) %in% "object"]
   temp_ <- temp_obj_list[[1]]
   temp_obj <- as.data.frame(temp_[!names(temp_list$object) %in% c("part", "bndbox")])
-
+  
+  if (length(temp_obj_list) > 1){  
   for (i in c(2:length(temp_obj_list))){
-    temp <- temp_obj_list[[i]][!names(temp_list$object) %in% c("part", "bndbox")]
-    temp <- as.data.frame(temp)
+    temp_ <- temp_obj_list[[i]]
+    temp <- as.data.frame(temp_[!names(temp_list$object) %in% c("part", "bndbox")])
     temp_obj <- bind_rows(temp_obj, temp)
   }
+  }  
   temp_object <- as.data.frame(temp_obj)
   temp_fnl <- merge(data, temp_object)
 }

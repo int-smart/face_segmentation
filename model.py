@@ -80,7 +80,7 @@ def load_weights(session, weights_url='https://umich.box.com/shared/static/81kic
 
 
 def pixelAccuracy(y_pred, y_true):
-    return 1.0 * np.sum((y_pred == y_true)) / np.sum(y_true != 255)
+    return 1.0 * np.sum((y_pred == y_true) * (y_true > 0)) / np.sum(((y_true+y_pred) < 255) * ((y_true+y_pred) > 0))
 
 
 def compute_MIoU(y_pred_batch, y_true_batch):
