@@ -1,6 +1,7 @@
 library(XML)
 library(dplyr)
-setwd('/home/akash/github/face_segmentation/data/VOC2012/Annotations//')
+library(data.table)
+setwd("/home/akash/github/face_segmentation/data/ANNOTATION")
 
 get_temp <- function(file_path){
   doc <- xmlParse(file_path)
@@ -25,7 +26,7 @@ get_temp <- function(file_path){
   if (length(temp_obj_list) > 1){  
   for (i in c(2:length(temp_obj_list))){
     temp_ <- temp_obj_list[[i]]
-    temp <- as.data.frame(temp_[!names(temp_list$object) %in% c("part", "bndbox")])
+    temp <- as.data.frame(temp_[!names(temp_) %in% c("part", "bndbox")])
     temp_obj <- bind_rows(temp_obj, temp)
   }
   }  
@@ -37,6 +38,7 @@ get_temp <- function(file_path){
 list_files <- list.files()
 fnl_parsed_data <- get_temp(list_files[1])
 for (i in c(2:length(list_files))){
+  print(i)
   temp_data <- get_temp(list_files[i])
   fnl_parsed_data <- bind_rows(fnl_parsed_data, temp_data)
 }
@@ -48,3 +50,34 @@ fnl_parsed_data$segmented <- as.integer(as.character(fnl_parsed_data$segmented))
 fnl_parsed_data$truncated <- as.integer(fnl_parsed_data$truncated)
 fnl_parsed_data$difficult <- as.integer(fnl_parsed_data$difficult)
 fnl_parsed_data$occluded <- as.integer(fnl_parsed_data$occluded)
+
+# Occulusion list
+setwd('/home/akash/github/face_segmentation/results')
+mean_iou = fread('iou_outputs.txt')
+new_file <- inner_join(fnl_parsed_data, mean_iou)
+
+# Effect of occulusion
+occlusion_output = new_file %>%
+  group_by(occluded) %>%
+  summarise(iou = mean(mean_iou, na.rm=T), nobs = n())
+
+occlusion_output = new_file %>%
+  group_by(occluded, name) %>%
+  summarise(iou = mean(mean_iou, na.rm=T), nobs = n())
+
+occlusion_output = new_file %>%
+  group_by(occluded, name, pose) %>%
+  summarise(iou = mean(mean_iou, na.rm=T), nobs = n())
+
+# Truncated list
+truncated_output = new_file %>%
+  group_by(occluded) %>%
+  summarise(iou = mean(mean_iou, na.rm=T), nobs = n())
+
+truncated_output = new_file %>%
+  group_by(occluded, name) %>%
+  summarise(iou = mean(mean_iou, na.rm=T), nobs = n())
+
+truncated_output = new_file %>%
+  group_by(occluded, name, pose) %>%
+  summarise(iou = mean(mean_iou, na.rm=T), nobs = n())

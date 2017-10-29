@@ -8,7 +8,7 @@ import os
 import urllib
 import matplotlib.pyplot as plt
 from PIL import Image
-
+import seaborn as sns
 
 IMG_PATH = './data/VOC2012/JPEGImages'
 GT_PATH = './data/VOC2012/SegmentationClass'
@@ -60,6 +60,7 @@ def fcn_8s(input, num_classes=21, is_training=False, scope='fcn_8s'):
                     tf.add_to_collection(end_points_collection, net)
                     end_points = slim.utils.convert_collection_to_dict(end_points_collection)
                 return net, end_points
+
 
 def load_weights(session, weights_url='https://umich.box.com/shared/static/81kicsu5t0u2pybjik0d7v13brlualxi.npy',
                  weights_download_dir='./model_files/'):
@@ -134,7 +135,18 @@ def main():
 
     # Call the test function to load images, run it through the net and calculate IoU values.
     list_iou, miou, list_pred = test(list_valimg, sess=sess1, prediction=pred, endpoints=endpoint, input=inp)
-    print(list_iou, miou, list_pred)
+
+
+def create_train():
+    list_valimg = open(SEG_IMG_PATH, 'r').readlines()
+    iou_temp = np.load('results/updated_iou_list.npy')
+    outfile = open('./results/iou_outputs.txt', 'w+')
+    outfile.write('filename mean_iou \n')
+    for i, val in enumerate(iou_temp):
+        outfile.write('{}.jpg {}\n'.format(list_valimg[i][:-1], iou_temp[i]))
+    outfile.close()
+
 
 if __name__=='__main__':
     main()
+

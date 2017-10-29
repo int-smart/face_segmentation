@@ -4,3 +4,4 @@ data/*
 outfile*
 dataset_ea.py
 model_files/*
+results/*
