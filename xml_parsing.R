@@ -53,6 +53,7 @@ fnl_parsed_data$occluded <- as.integer(fnl_parsed_data$occluded)
 
 # Occulusion list
 setwd('/home/akash/github/face_segmentation/results')
+image.lod
 mean_iou = fread('iou_outputs.txt')
 new_file <- inner_join(fnl_parsed_data, mean_iou)
 
@@ -81,3 +82,5 @@ truncated_output = new_file %>%
 truncated_output = new_file %>%
   group_by(occluded, name, pose) %>%
   summarise(iou = mean(mean_iou, na.rm=T), nobs = n())
+
+write.csv(new_file, "./parsed_data.csv")

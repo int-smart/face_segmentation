@@ -8,7 +8,6 @@ import os
 import urllib
 import matplotlib.pyplot as plt
 from PIL import Image
-import seaborn as sns
 
 IMG_PATH = './data/VOC2012/JPEGImages'
 GT_PATH = './data/VOC2012/SegmentationClass'
@@ -84,6 +83,33 @@ def pixelAccuracy(y_pred, y_true):
     return 1.0 * np.sum((y_pred == y_true) * (y_true > 0)) / np.sum(((y_true+y_pred) < 255) * ((y_true+y_pred) > 0))
 
 
+def pixelInterPerClass(y_pred, y_true, sc_dict):
+    classes = np.unique(y_pred)
+    inter_k = np.zeros(classes.shape[0],)
+    union_k = np.zeros(classes.shape[0],)
+    pred_pixels_k = np.zeros(classes.shape[0],)
+    for i, val in enumerate(classes):
+        if val != 0:
+            inter_k[i] = np.sum(np.logical_and(y_pred == y_true, y_pred == val))
+            union_k[i] = np.sum(np.logical_or(y_pred == val, y_true == val))
+            pred_pixels_k[i] = np.sum(y_pred == val)
+
+    y_pred_sc = np.copy(y_pred.flatten())
+    y_true_sc = np.copy(y_true.flatten())
+    y_pred_sc = np.array([sc_dict[i] for i in y_pred_sc])
+    y_true_sc = np.array([sc_dict[i] for i in y_true_sc])
+
+    inter_sc = np.zeros(classes.shape[0],)
+    inter_dc = np.zeros(classes.shape[0],)
+
+    for i, val in enumerate(classes):
+        if val != 0:
+            inter_sc[i] = np.sum(np.logical_and((y_pred_sc == y_true_sc), (y_pred == val).flatten()))
+            inter_dc[i] = np.sum(np.logical_and((y_pred == val).flatten(), (y_true_sc != sc_dict[val]) *
+                                             (y_true_sc != 255) * (y_true_sc != 0)))
+    return classes, inter_k, union_k, pred_pixels_k, inter_sc, inter_dc
+
+
 def compute_MIoU(y_pred_batch, y_true_batch):
     return np.mean(np.asarray([pixelAccuracy(y_pred_batch[i], y_true_batch[i]) for i in range(len(y_true_batch))]))
 
@@ -95,49 +121,72 @@ def load_data(image, IMAGE_PATH = IMG_PATH, GROUNDT_PATH = GT_PATH):
     input_img = input_img[:, :, ::-1]
     input_img -= np.array((104.00698793, 116.66876762, 122.67891434))
     input_img = np.expand_dims(input_img, axis=0)
-
-    # gt = np.expand_dims(mpimg.imread(GT_PATH + '/' + image.rstrip('\n') + ".png"), axis= 0)
     gt = Image.open(GROUNDT_PATH + '/' + image.rstrip('\n') + ".png")
     gt = gt.resize((500, 500))
     gt = np.array(gt, dtype=np.uint8)
     # gt = gt[np.newaxis, ...]
     return input_img,gt
 
-def test(list_image, sess, prediction, endpoints, input):
+
+def test(list_image, write_out=True, tf_use=False, prediction=None, input=None, sess=None):
     batch_size = len(list_image)
-    list_iou = np.zeros([batch_size,1])
-    fin_prediction = []
-    # fin_prediction = np.zeros([batch_size, 500,500])
-    # fin_gt = np.zeros([batch_size, 500, 500])
-    # inp_images = np.zeros([batch_size,500,500,3])
-    # miou = 0
+    list_iou = np.zeros((batch_size,))
     i = 0
+    fin_prediction = np.zeros((batch_size, 500, 500), dtype=np.uint8)
+    if not tf_use:
+        fin_prediction = np.load('./results/fin_prediction.npy')
 
-    for each in list_image:
+    if write_out:
+        outfile = open('./results/false_positive_outputs.txt', 'w+')
+        outfile.write('filename class inter_k union_k pred_pixels_k inter_sc inter_dc\n')
+
+    sc_dict = create_sc_dict()
+    interk, union_k, pred_pixels_k, inter_sc, inter_dc = [], [], [], [], []
+    for index, each in enumerate(list_image):
         inp_img, gt = load_data(each)
-        image_pred = sess.run(prediction, feed_dict={input: inp_img})
-        output = np.argmax(image_pred, axis=3).reshape((500, 500))
-        fin_prediction.append(output)
-        list_iou[i] = pixelAccuracy(output, gt)
-        i += 1
-    mIoU = sum(list_iou)/len(list_iou)
-    return list_iou,mIoU,fin_prediction
+        if tf_use:
+            image_pred = sess.run(prediction, feed_dict={input: inp_img})
+            output = np.argmax(image_pred, axis=3).reshape((500, 500))
+            fin_prediction[index] = output
+
+        classes, interk_temp, unionk_temp, pred_pixels_k_temp, inter_sc_temp, inter_dc_temp = pixelInterPerClass(fin_prediction[index], gt, sc_dict)
+        interk.append(interk_temp)
+        union_k.append(unionk_temp)
+        pred_pixels_k.append(pred_pixels_k_temp)
+        inter_sc.append(inter_sc_temp)
+        inter_dc.append(inter_dc_temp)
+        if write_out:
+            for ind, interk_val in enumerate(interk_temp):
+                if classes[ind] != 0:
+                    outfile.write('{}.jpg {} {} {} {} {} {}\n'.format(each[:-1],
+                                                                    classes[ind],
+                                                                    interk_val,
+                                                                    unionk_temp[ind],
+                                                                    pred_pixels_k_temp[ind],
+                                                                    inter_sc_temp[ind],
+                                                                    inter_dc_temp[ind]))
+    outfile.close()
+    return interk, union_k, pred_pixels_k, inter_sc, inter_dc
 
 
-def main():
+def main(tf_use=False):
     #Creating a list of validation images
     list_valimg = open(SEG_IMG_PATH, 'r').readlines()
-    # Start session, setup placeholders and load weights.
-    sess1 = tf.Session()
-    inp = tf.placeholder(dtype=tf.float32, shape=[1, 500, 500, 3])
-    pred, endpoint = fcn_8s(inp)
-    load_weights(sess1)
 
-    # Call the test function to load images, run it through the net and calculate IoU values.
-    list_iou, miou, list_pred = test(list_valimg, sess=sess1, prediction=pred, endpoints=endpoint, input=inp)
+    if tf_use:
+        # Start session, setup placeholders and load weights.
+        sess1 = tf.Session()
+        inp = tf.placeholder(dtype=tf.float32, shape=[1, 500, 500, 3])
+        pred, endpoint = fcn_8s(inp)
+        load_weights(sess1)
+        # Call the test function to load images, run it through the net and calculate IoU values.
+        interk, union_k, pred_pixels_k, inter_sc, inter_dc = test(list_valimg, write_out=True, tf_use=True, sess=sess1, prediction=pred,
+                                                                  input=inp)
+    else:
+        interk, union_k, pred_pixels_k, inter_sc, inter_dc = test(list_valimg, write_out=True)
 
 
-def create_train():
+def create_outputFile():
     list_valimg = open(SEG_IMG_PATH, 'r').readlines()
     iou_temp = np.load('results/updated_iou_list.npy')
     outfile = open('./results/iou_outputs.txt', 'w+')
@@ -147,6 +196,16 @@ def create_train():
     outfile.close()
 
 
+def create_sc_dict():
+    keys = np.arange(21)
+    values = [0, 1, 2, 1, 3, 7, 3,
+              3, 5, 6, 5, 6, 5, 5,
+              2, 5, 7, 5, 6, 3, 21]
+    sc_dict = dict(zip(keys, values))
+    sc_dict[255] = 255
+    return sc_dict
+
+
 if __name__=='__main__':
-    main()
+    main(False)
 
