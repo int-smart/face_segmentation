@@ -201,8 +201,8 @@ def test(list_image_paths, list_gt_paths, write_out=True, iou_path=None, pred_pa
 
 
 def main(image_dir, gt_dir, sess, pred, inp):
-    list_valimg = [os.path.join(image_dir, i) for i in os.listdir(image_dir)]
-    list_gt_paths = [os.path.join(gt_dir, i) for i in os.listdir(gt_dir)]
+    list_valimg = np.sort([os.path.join(image_dir, i) for i in os.listdir(image_dir)])
+    list_gt_paths = np.sort([os.path.join(gt_dir, i) for i in os.listdir(gt_dir)])
     val = test(list_valimg, list_gt_paths, True, image_dir, image_dir, pred, inp, sess)
     return val
 
