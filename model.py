@@ -12,7 +12,7 @@ from PIL import Image
 IMG_PATH = './data/VOC2012/JPEGImages'
 GT_PATH = './data/VOC2012/SegmentationClass'
 SEG_IMG_PATH = './data/VOC2012/seg11valid.txt'
-
+error_analysis_path = './data/error_analysis'
 
 def fcn_8s(input, num_classes=21, is_training=False, scope='fcn_8s'):
     with tf.variable_scope(scope):
@@ -128,7 +128,7 @@ def load_data(image, IMAGE_PATH = IMG_PATH, GROUNDT_PATH = GT_PATH):
     return input_img,gt
 
 
-def test(list_image, write_out=True, tf_use=False, prediction=None, input=None, sess=None):
+def test_per_class(list_image, write_out=True, tf_use=False, prediction=None, input=None, sess=None):
     batch_size = len(list_image)
     list_iou = np.zeros((batch_size,))
     i = 0
@@ -169,22 +169,42 @@ def test(list_image, write_out=True, tf_use=False, prediction=None, input=None, 
     return interk, union_k, pred_pixels_k, inter_sc, inter_dc
 
 
-def main(tf_use=False):
-    #Creating a list of validation images
-    list_valimg = open(SEG_IMG_PATH, 'r').readlines()
+def load_data(image_path, ground_truth_path):
+    img = Image.open(image_path)
+    img = img.resize((500, 500))
+    input_img = np.array(img, dtype=np.float32)
+    input_img = input_img[:, :, ::-1]
+    input_img -= np.array((104.00698793, 116.66876762, 122.67891434))
+    input_img = np.expand_dims(input_img, axis=0)
+    gt = Image.open(ground_truth_path)
+    gt = gt.resize((500, 500))
+    gt = np.array(gt, dtype=np.uint8)
+    return input_img, gt
 
-    if tf_use:
-        # Start session, setup placeholders and load weights.
-        sess1 = tf.Session()
-        inp = tf.placeholder(dtype=tf.float32, shape=[1, 500, 500, 3])
-        pred, endpoint = fcn_8s(inp)
-        load_weights(sess1)
-        # Call the test function to load images, run it through the net and calculate IoU values.
-        interk, union_k, pred_pixels_k, inter_sc, inter_dc = test(list_valimg, write_out=True, tf_use=True, sess=sess1, prediction=pred,
-                                                                  input=inp)
-    else:
-        interk, union_k, pred_pixels_k, inter_sc, inter_dc = test(list_valimg, write_out=True)
 
+def test(list_image_paths, list_gt_paths, write_out=True, iou_path=None, pred_path=None,
+         prediction=None, input=None, sess=None):
+    batch_size = len(list_image_paths)
+    list_iou = np.zeros((batch_size,))
+    fin_prediction = np.zeros((batch_size, 500, 500), dtype=np.uint8)
+    for index, each in enumerate(list_image_paths):
+        inp_img, gt = load_data(each, list_gt_paths[index])
+        image_pred = sess.run(prediction, feed_dict={input: inp_img})
+        output = np.argmax(image_pred, axis=3).reshape((500, 500))
+        fin_prediction[index] = output
+        list_iou[index] = pixelAccuracy(output, gt)
+
+    if write_out:
+        np.save(iou_path + '/iou.npy', list_iou)
+        np.save(pred_path + '/prediction.npy', fin_prediction)
+    return np.mean(list_iou)
+
+
+def main(image_dir, gt_dir, sess, pred, inp):
+    list_valimg = [os.path.join(image_dir, i) for i in os.listdir(image_dir)]
+    list_gt_paths = [os.path.join(gt_dir, i) for i in os.listdir(gt_dir)]
+    val = test(list_valimg, list_gt_paths, True, image_dir, image_dir, pred, inp, sess)
+    return val
 
 def create_outputFile():
     list_valimg = open(SEG_IMG_PATH, 'r').readlines()
@@ -207,5 +227,65 @@ def create_sc_dict():
 
 
 if __name__=='__main__':
-    main(False)
+    # Start session, setup placeholders and load weights.
+    sess1 = tf.Session()
+    inp = tf.placeholder(dtype=tf.float32, shape=[1, 500, 500, 3])
+    pred, endpoint = fcn_8s(inp)
+    load_weights(sess1)
 
+    error_analysis_path = './data/error_analysis'
+
+    # Original images
+    val = main(error_analysis_path+'/orig_image', error_analysis_path+'/gt', sess1, pred, inp)
+    print('mean_iou for original_images is {}'.format(val))
+
+
+    # Blurring images
+    blurring_path = error_analysis_path+'/blurring'
+    # 1_gaussian_blur
+    val = main(blurring_path+'/1_gaussian_blur', error_analysis_path+'/gt', sess1, pred, inp)
+    print('mean_iou for 1_gaussian_blur is {}'.format(val))
+
+    # 2_gaussian_blur
+    val = main(blurring_path+'/2_gaussian_blur', error_analysis_path+'/gt', sess1, pred, inp)
+    print('mean_iou for 2_gaussian_blur is {}'.format(val))
+
+    # half_gaussian_blur
+    val = main(blurring_path+'/half_gaussian_blur', error_analysis_path+'/gt', sess1, pred, inp)
+    print('mean_iou for half_gaussian_blur is {}'.format(val))
+
+    # Effect of lens flare
+    flare_path = error_analysis_path + '/lens_flare'
+    # 100
+    val = main(flare_path+'/100', error_analysis_path+'/gt', sess1, pred, inp)
+    print('mean_iou for lens flare 100 is {}'.format(val))
+
+    # 125
+    val = main(flare_path+'/125', error_analysis_path+'/gt', sess1, pred, inp)
+    print('mean_iou for lens flare 125 is {}'.format(val))
+
+    # 150
+    val = main(flare_path+'/150', error_analysis_path+'/gt', sess1, pred, inp)
+    print('mean_iou for lens flare 150 is {}'.format(val))
+
+    # 175
+    val = main(flare_path+'/175', error_analysis_path+'/gt', sess1, pred, inp)
+    print('mean_iou for lens flare 175 is {}'.format(val))
+
+    # Effect of rotation
+    rotation_path = error_analysis_path+'/rotation'
+    # 90
+    val = main(rotation_path+'/90', error_analysis_path+'/gt', sess1, pred, inp)
+    print('mean_iou for rotation 90 is {}'.format(val))
+
+    # 180
+    val = main(rotation_path+'/180', error_analysis_path+'/gt', sess1, pred, inp)
+    print('mean_iou for rotation 180 is {}'.format(val))
+
+    # 270
+    val = main(rotation_path+'/270', error_analysis_path+'/gt', sess1, pred, inp)
+    print('mean_iou for rotation 270 is {}'.format(val))
+
+    # Effect of vignetting
+    val = main(error_analysis_path + '/vignetting', error_analysis_path + '/gt', sess1, pred, inp)
+    print('mean_iou for vignetting is {}'.format(val))
